@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::{fmt::format, fs};
 
 use reqwest;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::test;
 
@@ -30,6 +31,66 @@ pub async fn search(name:&str) -> Result<String,reqwest::Error>{
     //println!("{}",body);
     let id = body["data"][0]["id"].to_string();
     Ok(id)
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct CollectionItem {
+    subject_id: usize,
+    subject_type: usize,
+    rate: usize,
+}
+
+pub async fn download_user_rating(name: &str,token:String) -> Result<bool, Box<dyn std::error::Error>> {
+    let limit = 100;
+    let mut offset = 0;
+    let mut all_collections:Vec<CollectionItem> = Vec::new();
+
+    loop{
+        // 拼接url
+        let url = format!("https://api.bgm.tv/v0/users/{}/collections?limit={}&offset={}", name,limit,offset);
+
+        let authorization_header = format!("Bearer {}",token);
+
+        // 发起GET请求并等待响应
+        let response = reqwest::Client::new()
+                        .get(&url)
+                        .header(reqwest::header::AUTHORIZATION,authorization_header)
+                        .header(reqwest::header::USER_AGENT, "EuDs63/RANK2COLLECTION")
+                        .send()
+                        .await?;
+
+        // 检查响应状态
+        if response.status().is_success() {
+            let body_json: serde_json::Value = response.json().await?;
+        } else {
+            // 打印错误信息
+            println!("Failed to download user rating: {}", response.status());
+            println!("Response is {}",response.text().await?);
+            return Ok(false);
+        }
+        
+    }
+        Ok(true)
+}
+
+
+// 读取bangumi_user_rating.json并输出10分评分
+pub fn read_user_rating() -> Result<(), Box<dyn std::error::Error>> {
+    // 读取文件并处理可能的IO错误
+    let file = fs::read_to_string("bangumi_user_rating.json")?;
+
+    // 将文件内容解析为JSON
+    let json: Value = serde_json::from_str(&file)?;
+    //println!("{}",json["data"][0]);
+
+    // 遍历JSON数组并输出评分
+    for item in json["data"].as_array().unwrap() {
+        if item["rate"]  == 9 {
+            println!("{}", item["subject_id"]);
+        }
+    }
+
+    Ok(())
 }
 
 pub async fn mark(id:String,token:String,shelf_type:i32) -> Result<bool,reqwest::Error>{

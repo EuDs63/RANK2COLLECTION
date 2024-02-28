@@ -1070,6 +1070,7 @@ dependencies = [
  "config",
  "csv",
  "reqwest",
+ "serde",
  "serde_json",
  "tokio",
 ]
