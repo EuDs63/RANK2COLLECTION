@@ -1,5 +1,9 @@
-neodb_enable = false
+neodb_enable = true
+neodb_download = false # 是否下载neodb数据
+neodb_username = ""
 neodb_token = ""
 
-bangumi_enable = false
+bangumi_enable = true
+bangumi_download = true # 是否下载bangumi数据
+bangumi_username = ""
 bangumi_token = ""

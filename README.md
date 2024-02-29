@@ -1,6 +1,6 @@
 # RANK2COLLECTION
 
-**根据neodb、bangumi的评分记录，自动创建满分目录**
+**根据neodb、bangumi的评分记录，自动创建收藏单(目录)**
 
 ## 说明
 - 程序逻辑如下:
@@ -8,6 +8,10 @@
     2. 新建目录，根据设置的筛选条件，自动添加
 - 注意事项
     1. 默认将标记结果设为公开，如介意，请自行修改代码。
+    2. 创建的目录默认命名为`{username}的十分榜单`，如介意，请自行修改代码
+- 最终效果如下
+  - [euds63的十分榜单](https://bgm.tv/index/56200)
+  - [NeoDB 收藏单 - euds63的十分榜单](https://neodb.social/collection/1ZcveK3ETuQcaBuHuupGmu)
 
 ## 使用
 1. 修改`config.toml.example`为对应的配置，并重名为`config.toml`
@@ -30,7 +34,8 @@
     git tag -a v0.3.0 -m "尝试自动化发布release"
     git push origin v0.3.0
     ```
-
+## todo
+- [ ] 丰富配置选项，允许自定义收藏单(目录)地址
 
 ## 参考链接
 - [Bangumi API](https://bangumi.github.io/api/#/%E6%94%B6%E8%97%8F/postUserCollection)
