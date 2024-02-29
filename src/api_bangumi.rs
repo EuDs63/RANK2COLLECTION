@@ -1,37 +1,9 @@
-use std::{fmt::format, fs};
+use std::{ fs};
 
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::test;
-
-pub async fn search(name:&str) -> Result<String,reqwest::Error>{
-    let url = "https://api.bgm.tv/v0/search/subjects?limit=1";
-
-    let body = json!({
-        "keyword": name,
-        "sort": "rank",
-        "filter": {
-            "type": [4],
-            "nsfw": false
-        }
-    });
-
-
-    let client = reqwest::Client::new();
-    //发送请求
-    let res = client
-        .post(url)
-        .header("User-Agent", "EuDs63/steam2record")
-        .json(&body)
-        .send()
-        .await?;
-    // 解析请求
-    let body:Value = res.text().await?.parse().unwrap();
-    //println!("{}",body);
-    let id = body["data"][0]["id"].to_string();
-    Ok(id)
-}
 
 #[derive(Debug,Clone, Deserialize, Serialize)]
 pub struct CollectionItem {
@@ -197,13 +169,6 @@ pub async fn add_subject(index_id:u64,token:String,collection_vec:Vec<Collection
 }
 
 
-
-#[test]
-async fn test_search_function(){
-    let name = "Squirrelmageddon!";
-    let id  = search(name).await.unwrap();
-    assert_eq!(id,"null".to_string());
-}
 
 #[test]
 async fn test_create_indices(){
