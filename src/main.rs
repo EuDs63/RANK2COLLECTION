@@ -25,13 +25,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match config.bangumi_enable {
         true => {
             println!("bangumi is enabled");
-            if api_bangumi::download_user_rating(&config.bangumi_username,config.bangumi_token.to_string()).await.unwrap() {
-                println!("bangumi user rating has been downloaded");
-            }else{
-                println!("bangumi user rating download failed");
+            // 判断是否下载用户评分记录
+            if config.bangumi_download {
+                println!("bangumi user rating info will be downloaded");
+                if api_bangumi::download_user_rating(&config.bangumi_username,config.bangumi_token.to_string()).await.unwrap() {
+                    println!("bangumi user rating has been downloaded");
+                }else{
+                    // 红色字体
+                    println!("\x1b[31m bangumi user rating download failed\x1b[0m");
+                }
             }
-            //api_bangumi::read_user_rating().unwrap();
+            // 创建目录
+            let index_id = api_bangumi::create_index(&config.bangumi_username,config.bangumi_token.to_string()).await.unwrap();
 
+            let collection_vec = api_bangumi::read_user_rating().unwrap();
+
+            // 添加用户评分到目录
+            if api_bangumi::add_subject(index_id, config.bangumi_token, collection_vec).await.unwrap() {
+                // 绿色字体
+                println!("bangumi user rating has been added to index");
+            }else{
+                // 红色字体
+                println!("\x1b[31m bangumi user rating add failed\x1b[0m");
+            }
         },
         _ => {
             println!("bangumi is disabled");

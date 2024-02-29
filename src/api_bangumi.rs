@@ -33,8 +33,8 @@ pub async fn search(name:&str) -> Result<String,reqwest::Error>{
     Ok(id)
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct CollectionItem {
+#[derive(Debug,Clone, Deserialize, Serialize)]
+pub struct CollectionItem {
     subject_id: usize,
     subject_type: usize,
     rate: usize,
@@ -69,8 +69,9 @@ pub async fn download_user_rating(name: &str,token:String) -> Result<bool, Box<d
             //检查是否还有数据
             if all_collections.len() < body_json["total"].as_u64().unwrap() as usize{
                 // 绿色字体
-                println!("/x1b[32m{} collections downloaded\x1b[0m",all_collections.len());
-                offset += 1;
+                println!("\x1b[32m downloaded {} user rating\x1b[0m", all_collections.len());
+                // bangumi的offset指的是偏移值，每次请求100条数据，所以每次请求后offset+100
+                offset += limit;
             }else{
                 break;
             }
@@ -91,90 +92,111 @@ pub async fn download_user_rating(name: &str,token:String) -> Result<bool, Box<d
 
 
 // 读取bangumi_user_rating.json并输出10分评分
-pub fn read_user_rating() -> Result<(), Box<dyn std::error::Error>> {
+pub fn read_user_rating() -> Result<Vec<CollectionItem>, Box<dyn std::error::Error>> {
     // 读取文件并处理可能的IO错误
     let file = fs::read_to_string("bangumi_user_rating.json")?;
 
     // 将文件内容解析为JSON
-    let json: Value = serde_json::from_str(&file)?;
-    //println!("{}",json["data"][0]);
+    let collections:Vec<CollectionItem> = serde_json::from_str(&file)?;
 
-    // 遍历JSON数组并输出评分
-    for item in json["data"].as_array().unwrap() {
-        if item["rate"]  == 9 {
-            println!("{}", item["subject_id"]);
-        }
-    }
+    // 过滤出评分为10分
+    let result:Vec<CollectionItem> = collections.iter()
+                            .filter(|item| item.rate == 10)
+                            .cloned()
+                            .collect();
 
-    Ok(())
+    // // 遍历JSON数组并输出评分
+    // for item in collections.iter() {
+    //     if item.rate  == 10 {
+    //         println!("{}", item.subject_id);
+    //     }
+    // }
+
+    Ok(result)
 }
 
-pub async fn mark(id:String,token:String,shelf_type:i32) -> Result<bool,reqwest::Error>{
-    let url = format!("https://api.bgm.tv/v0/users/-/collections/{}",id);
+// 创建目录并返回目录id
+pub async fn create_index(name: &str, token: String) -> Result<u64, reqwest::Error> {
+    let url = "https://api.bgm.tv/v0/indices";
     let authorization_header = format!("Bearer {}",token);
+    let title = format!("{}的十分榜单",name);
 
     let body = json!({
-        "type": shelf_type, //1:想玩，2：玩过，3：在玩
-        "private": false
+        "title": title,
     });
 
     let client = reqwest::Client::new();
     //发送请求
     let res = client
-        .post(&url)
+        .post(url)
         .header("User-Agent", "EuDs63/steam2record")
         .header("Authorization",authorization_header)
+        .header("Content-Type","application/json")
         .json(&body)
         .send()
         .await?;
 
-    //println!("{}",res.text().await?);
     // 获取响应状态码
     let status_code = res.status();
 
     // 根据状态码进行判断
     if status_code.is_success() {
-        println!("Request was successful! Status code: {}", status_code);
-        return Ok(true);
+        let body:Value = res.text().await?.parse().unwrap();
+        let id = body["id"].as_u64().unwrap();
+        // 绿色字体
+        println!("\x1b[32mCreate index {} successful!\x1b[0m",id);
+        return Ok(id);
     }
+    // 创建失败
+    // 红色字体
+    println!("\x1b[31mCreate index failed!\x1b[0m");
     println!("Request failed! Status code: {}", status_code);
     println!("Response is {}",res.text().await?);
-    return Ok(false);
-
+    panic!("Create index failed!");
 }
 
-pub async fn operate(name:&str,hours:&str,token:String) -> Result<bool,reqwest::Error>{
-    // 搜索得到id
-    let id = search(name).await.unwrap();
+// 添加subject到index
+pub async fn add_subject(index_id:u64,token:String,collection_vec:Vec<CollectionItem>) -> Result<bool,reqwest::Error>{
+    let client = reqwest::Client::new();
+    let url = format!("https://api.bgm.tv/v0/indices/{}/subjects",index_id);
+    let authorization_header = format!("Bearer {}",token);
+    let mut count = 0;
 
-    //对搜索到的id进行判断
-    if id == "null" {
-        // 红色字体
-        println!("\x1b[31m{} not found\x1b[0m", name);
-        return Ok(false);
-    } else {
-        // 根据游戏时间进行判断
-        let mut shelf_type = 2;
-        
-        // 无时间数据则判断为想玩
-        if hours.is_empty() {
-            println!("{} hasn't played", name);
-            shelf_type = 1;
-        }
-        //开始标记
-        println!("try to mark {} on bangumi ", name);
-        let result = mark(id, token, shelf_type).await.unwrap();
-        if result {
+    // 遍历collection_vec,发送请求
+    for (i,item) in collection_vec.iter().enumerate(){
+        let body = json!({
+            "subject_id" : item.subject_id,
+            "sort": i
+        });
+
+        //发送请求
+        let res = client
+            .post(&url)
+            .header("User-Agent", "EuDs63/steam2record")
+            .header("Authorization",&authorization_header)
+            .json(&body)
+            .send()
+            .await?;
+
+        // 获取响应状态码
+        let status_code = res.status();
+
+        // 根据状态码进行判断
+        if status_code.is_success() {
             // 绿色字体
-            println!("\x1b[32m{} mark on bangumi success\x1b[0m", name);
-            return Ok(true);
-        } else {
-            // 红色字体
-            println!("\x1b[31m{} mark on bangumi failed\x1b[0m", name);
+            println!("\x1b[32mAdd subject {} successful!\x1b[0m", item.subject_id);
+            count += 1;
+        }else{
+            println!("Request failed! Status code: {}", status_code);
+            println!("Response is {}",res.text().await?);
             return Ok(false);
         }
     }
+    println!("Add {} subjects to index {} successful!",count,index_id);
+    Ok(true)
 }
+
+
 
 #[test]
 async fn test_search_function(){
@@ -184,11 +206,12 @@ async fn test_search_function(){
 }
 
 #[test]
-async fn test_mark_function(){
-    let id = "10468".to_string();
+async fn test_create_indices(){
     let config = crate::app_config::AppConfig::from_file("config.toml").unwrap();
     let token = config.bangumi_token;
-    let shelf_type = 2;
-    let result = mark(id,token,shelf_type).await.unwrap();
-    assert!(result);
+    let name = config.bangumi_username;
+    let result = create_index(&name, token).await.unwrap();
+    assert_eq!(result,56190);
 }
+
+
