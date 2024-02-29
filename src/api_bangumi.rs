@@ -1,4 +1,4 @@
-use std::{ fs};
+use std::fs;
 
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -8,8 +8,8 @@ use tokio::test;
 #[derive(Debug,Clone, Deserialize, Serialize)]
 pub struct CollectionItem {
     subject_id: usize,
-    subject_type: usize,
     rate: usize,
+    comment: Option<String>
 }
 
 pub async fn download_user_rating(name: &str,token:String) -> Result<bool, Box<dyn std::error::Error>> {
@@ -136,10 +136,18 @@ pub async fn add_subject(index_id:u64,token:String,collection_vec:Vec<Collection
 
     // 遍历collection_vec,发送请求
     for (i,item) in collection_vec.iter().enumerate(){
-        let body = json!({
+        let mut body = json!({
             "subject_id" : item.subject_id,
             "sort": i
         });
+
+        // 检查 comment_text 是否存在
+        if let Some(comment_text) = &item.comment {
+            let mut processed_comment = comment_text.clone(); 
+            // 删除 \r\n 字符序列
+            processed_comment = processed_comment.replace("\r\n", "");
+            body["comment"] = json!(processed_comment);
+        }
 
         //发送请求
         let res = client
