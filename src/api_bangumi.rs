@@ -44,6 +44,8 @@ pub async fn download_user_rating(name: &str,token:String) -> Result<bool, Box<d
     let limit = 100;
     let mut offset = 0;
     let mut all_collections:Vec<CollectionItem> = Vec::new();
+    
+    let client = reqwest::Client::new();
 
     loop{
         // 拼接url
@@ -52,7 +54,7 @@ pub async fn download_user_rating(name: &str,token:String) -> Result<bool, Box<d
         let authorization_header = format!("Bearer {}",token);
 
         // 发起GET请求并等待响应
-        let response = reqwest::Client::new()
+        let response = client
                         .get(&url)
                         .header(reqwest::header::AUTHORIZATION,authorization_header)
                         .header(reqwest::header::USER_AGENT, "EuDs63/RANK2COLLECTION")
@@ -62,14 +64,28 @@ pub async fn download_user_rating(name: &str,token:String) -> Result<bool, Box<d
         // 检查响应状态
         if response.status().is_success() {
             let body_json: serde_json::Value = response.json().await?;
-        } else {
+            let collections: Vec<CollectionItem> = serde_json::from_value(body_json["data"].clone())?;
+            all_collections.extend(collections);
+            //检查是否还有数据
+            if all_collections.len() < body_json["total"].as_u64().unwrap() as usize{
+                // 绿色字体
+                println!("/x1b[32m{} collections downloaded\x1b[0m",all_collections.len());
+                offset += 1;
+            }else{
+                break;
+            }
+        } 
+        else {
             // 打印错误信息
             println!("Failed to download user rating: {}", response.status());
             println!("Response is {}",response.text().await?);
+            println!("current offset is {}",offset);
             return Ok(false);
         }
-        
     }
+        // 将所有数据写入文件
+        let serialized_data = serde_json::to_string(&all_collections)?;
+        fs::write("bangumi_user_rating.json", serialized_data)?;
         Ok(true)
 }
 
@@ -120,11 +136,10 @@ pub async fn mark(id:String,token:String,shelf_type:i32) -> Result<bool,reqwest:
     if status_code.is_success() {
         println!("Request was successful! Status code: {}", status_code);
         return Ok(true);
-    } else {
-        println!("Request failed! Status code: {}", status_code);
-        println!("Response is {}",res.text().await?);
-        return Ok(false);
     }
+    println!("Request failed! Status code: {}", status_code);
+    println!("Response is {}",res.text().await?);
+    return Ok(false);
 
 }
 
